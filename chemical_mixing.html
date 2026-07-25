@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chemical Mixing Simulator - AtomicCore</title>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    
+    <!-- Three.js Library & Post-Processing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #4A00E0;
+            --panel-bg: rgba(20, 10, 40, 0.7);
+            --text-main: #ffffff;
+            --accent: #00e5ff;
+            --border: #8E2DE2;
+        }
+        body {
+            margin: 0; padding: 0;
+            background: linear-gradient(-45deg, #0f0f1a, #1a1a2e, #16213e, #0f3460);
+            background-size: 400% 400%;
+            animation: gradientBG 15s ease infinite;
+            background-attachment: fixed;
+            color: var(--text-main);
+            font-family: 'Share Tech Mono', monospace;
+            overflow-x: hidden;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-shadow: 0 0 5px rgba(0, 229, 255, 0.4);
+        }
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        .container {
+            background: rgba(22, 27, 34, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            z-index: 100;
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), inset 0 0 20px rgba(255, 255, 255, 0.05);
+            width: 90%;
+            max-width: 900px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        h1 { margin-top: 0; color: #fff; font-size: 28px; }
+        p { color: #8b949e; margin-bottom: 20px; }
+
+        .mixer-area {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 30px;
+            min-height: 150px;
+        }
+
+        .element-drop {
+            width: 120px;
+            height: 120px;
+            border: 2px dashed #58a6ff;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(88, 166, 255, 0.1);
+            color: #fff;
+            transition: 0.3s;
+            user-select: none;
+            position: relative;
+        }
+        .element-drop:hover {
+            background: rgba(88, 166, 255, 0.2);
+            box-shadow: 0 0 20px rgba(88, 166, 255, 0.3);
+        }
+        
+        .el-clickable {
+            width: 100%;
+            height: 60%;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            align-items: center;
+        }
+        .element-select {
+            background: rgba(13, 17, 23, 0.8);
+            border: 1px solid var(--accent);
+            color: #fff;
+            font-size: 16px;
+            font-weight: bold;
+            text-align: center;
+            outline: none;
+            cursor: text;
+            width: 70%;
+            padding: 4px;
+            border-radius: 6px;
+            transition: 0.2s;
+        }
+        .element-select:focus {
+            box-shadow: 0 0 10px var(--accent);
+            width: 85%;
+        }
+
+        .el-amount-container {
+            height: 40%;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            margin-top: 5px;
+        }
+        .amt-input {
+            width: 45px;
+            background: rgba(0,0,0,0.5);
+            border: 1px solid var(--accent);
+            color: #fff;
+            font-weight: bold;
+            font-size: 14px;
+            text-align: center;
+            outline: none;
+            border-radius: 4px;
+            padding: 2px;
+        }
+        .amt-input:focus {
+            box-shadow: 0 0 5px var(--accent);
+        }
+
+        .plus-sign {
+            font-size: 32px;
+            color: #8b949e;
+            margin: 0 5px;
+        }
+
+        .controls-row {
+            margin-bottom: 25px;
+        }
+        .btn {
+            background-color: transparent;
+            color: var(--accent);
+            border: 1px solid var(--accent);
+            padding: 12px 25px;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 16px;
+            font-family: 'Share Tech Mono', monospace;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: 0.3s;
+            box-shadow: 0 0 10px rgba(0, 229, 255, 0.2);
+        }
+        .btn:hover { background-color: var(--accent); color: #000; box-shadow: 0 0 20px rgba(0, 229, 255, 0.6); }
+
+        .mix-btn {
+            background: linear-gradient(135deg, #8E2DE2, #4A00E0);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.3);
+            padding: 15px 30px;
+            font-size: 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: 0.3s;
+            font-weight: bold;
+            font-family: 'Share Tech Mono', monospace;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            box-shadow: 0 5px 15px rgba(74, 0, 224, 0.4);
+        }
+        .mix-btn:hover { background: linear-gradient(135deg, #4A00E0, #b224ef); transform: scale(1.05); box-shadow: 0 8px 20px rgba(74, 0, 224, 0.6); }
+        .mix-btn:disabled {
+            background: #30363d;
+            border-color: #30363d;
+            color: #8b949e;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        @keyframes volatileShake {
+            0% { transform: translate(1px, 1px) rotate(0deg); }
+            10% { transform: translate(-1px, -2px) rotate(-1deg); }
+            20% { transform: translate(-3px, 0px) rotate(1deg); }
+            30% { transform: translate(3px, 2px) rotate(0deg); }
+            40% { transform: translate(1px, -1px) rotate(1deg); }
+            50% { transform: translate(-1px, 2px) rotate(-1deg); }
+            60% { transform: translate(-3px, 1px) rotate(0deg); }
+            70% { transform: translate(3px, 1px) rotate(-1deg); }
+            80% { transform: translate(-1px, -1px) rotate(1deg); }
+            90% { transform: translate(1px, 2px) rotate(0deg); }
+            100% { transform: translate(1px, -2px) rotate(-1deg); }
+        }
+        .volatile {
+            animation: volatileShake 0.4s infinite;
+            border-color: #ff4444 !important;
+            box-shadow: 0 0 30px rgba(255, 68, 68, 0.6) !important;
+            background: rgba(255, 68, 68, 0.15) !important;
+        }
+
+        .back-btn {
+            background: transparent;
+            color: #8b949e;
+            border: 1px solid #30363d;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-top: 20px;
+            text-decoration: none;
+            display: inline-block;
+            transition: 0.2s;
+        }
+        .back-btn:hover { background: #30363d; color: #fff; }
+
+        /* Result Animation */
+        #result-display {
+            display: none;
+            margin-top: 30px;
+            padding: 20px;
+            background: rgba(0, 255, 136, 0.1);
+            border: 1px solid #00ff88;
+            border-radius: 8px;
+            animation: fadeIn 0.5s ease-out;
+            text-align: left;
+        }
+        #result-display h3 { color: #00ff88; margin: 0 0 10px 0; text-align: center; }
+        #result-text { font-size: 16px; color: #fff; line-height: 1.5; text-align: center;}
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes compressMixer {
+            0% { transform: scale(1); }
+            15% { transform: scale(1.05); filter: brightness(1.2); } 
+            30% { transform: scaleX(0.6) scaleY(0.9); filter: brightness(1.5); } 
+            45% { transform: scaleX(0.3) scaleY(0.8) rotate(2deg); filter: brightness(2); } 
+            60% { transform: scale(0.1) rotate(-2deg); filter: brightness(3) blur(5px); opacity: 0.5; }
+            70% { transform: scale(1.8); filter: brightness(5) blur(10px); opacity: 1; }
+            100% { transform: scale(1); filter: brightness(1) blur(0); opacity: 1; }
+        }
+        .anim-compress { animation: compressMixer 2s cubic-bezier(0.25, 0.1, 0.25, 1); }
+
+        /* Screen Shake Effect */
+        @keyframes screenShake {
+            0% { transform: translate(4px, 4px) rotate(0deg); }
+            10% { transform: translate(-4px, -8px) rotate(-4deg); }
+            20% { transform: translate(-12px, 0px) rotate(4deg); }
+            30% { transform: translate(12px, 8px) rotate(0deg); }
+            40% { transform: translate(4px, -4px) rotate(4deg); }
+            50% { transform: translate(-4px, 8px) rotate(-4deg); }
+            60% { transform: translate(-12px, 4px) rotate(0deg); }
+            70% { transform: translate(12px, 4px) rotate(-4deg); }
+            80% { transform: translate(-4px, -4px) rotate(4deg); }
+            90% { transform: translate(4px, 8px) rotate(0deg); }
+            100% { transform: translate(4px, -8px) rotate(-4deg); }
+        }
+        .shake-active {
+            animation: screenShake 0.1s infinite !important;
+            filter: contrast(1.5) brightness(1.2) hue-rotate(30deg);
+        }
+
+        .radioactive-active {
+            animation: radioactivePulse 3s linear !important;
+        }
+        @keyframes radioactivePulse {
+            0% { filter: contrast(1.2) brightness(1.1); box-shadow: inset 0 0 50px rgba(0, 255, 0, 0.5); }
+            10% { filter: contrast(1.5) brightness(1.3); }
+            20% { filter: contrast(1.1) brightness(1.1); box-shadow: inset 0 0 100px rgba(0, 255, 0, 0.8); }
+            30% { filter: contrast(1.6) brightness(1.4); }
+            40% { filter: contrast(1.2) brightness(1.1); }
+            50% { filter: contrast(1.8) brightness(1.5); box-shadow: inset 0 0 150px rgba(0, 255, 0, 1); }
+            60% { filter: contrast(1.3) brightness(1.2); }
+            70% { filter: contrast(1.7) brightness(1.4); }
+            80% { filter: contrast(1.1) brightness(1.1); }
+            90% { filter: contrast(1.4) brightness(1.2); box-shadow: inset 0 0 50px rgba(0, 255, 0, 0.5); }
+            100% { filter: none; box-shadow: none; }
+        }
+
+        #radioactive-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0, 255, 0, 0.15);
+            z-index: 999999;
+            pointer-events: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .radioactive-active #radioactive-overlay {
+            display: flex;
+            animation: radioactiveOverlayPulse 3s linear;
+        }
+        
+        .radioactive-icon {
+            font-size: 250px;
+            color: #00ff00;
+            text-shadow: 0 0 50px #00ff00, 0 0 100px #00ff00;
+            animation: spin 3s linear infinite;
+            line-height: 1;
+        }
+        
+        .radioactive-text {
+            font-size: 50px;
+            color: #00ff00;
+            font-weight: 900;
+            letter-spacing: 15px;
+            margin-top: 20px;
+            text-shadow: 0 0 30px #00ff00;
+            animation: blink 0.2s infinite;
+            text-align: center;
+        }
+        
+        @keyframes radioactiveOverlayPulse {
+            0%, 100% { opacity: 0; }
+            10%, 90% { opacity: 1; }
+        }
+        @keyframes spin {
+            100% { transform: rotate(360deg); }
+        }
+        @keyframes blink {
+            0%, 49% { opacity: 1; }
+            50%, 100% { opacity: 0; }
+        }
+
+        #radioactive-lightning {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0, 255, 0, 0.4);
+            z-index: 999998;
+            pointer-events: none;
+        }
+
+        #radioactive-crack {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            pointer-events: none;
+            z-index: 999997; 
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M50,50 L40,0 L45,20 L50,50 L80,10 L60,30 L50,50 L100,40 L70,45 L50,50 L90,80 L65,60 L50,50 L60,100 L55,70 L50,50 L20,90 L35,65 L50,50 L0,60 L30,55 L50,50 L10,20 L35,40 Z' fill='none' stroke='%2300ff00' stroke-width='0.5' opacity='0.8'/%3E%3Cpath d='M50,50 L30,20 L35,35 L40,10 L50,50 L75,25 L65,40 L50,50 L85,65 L70,55 L50,50 L40,85 L45,65 L50,50 L15,50 L30,50 L50,50' fill='none' stroke='%2300ff00' stroke-width='0.2' opacity='0.6'/%3E%3C/svg%3E");
+            background-size: 100% 100%;
+        }
+
+        .radioactive-active #radioactive-crack {
+            display: block;
+        }
+
+        .radioactive-active #radioactive-lightning {
+            display: block;
+            animation: thunderFlash 3s linear;
+        }
+
+        @keyframes thunderFlash {
+            0% { opacity: 0; }
+            5% { opacity: 0.8; }
+            10% { opacity: 0; }
+            15% { opacity: 0; }
+            17% { opacity: 0.9; }
+            19% { opacity: 0; }
+            21% { opacity: 1; }
+            25% { opacity: 0; }
+            50% { opacity: 0; }
+            55% { opacity: 0.7; }
+            60% { opacity: 0; }
+            80% { opacity: 0; }
+            82% { opacity: 1; }
+            85% { opacity: 0; }
+            100% { opacity: 0; }
+        }
+
+        /* Disclaimer Modal */
+        #disclaimer-modal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: linear-gradient(135deg, #ff0000, #aa0000);
+            color: white;
+            padding: 40px;
+            border-radius: 15px;
+            z-index: 999999;
+            text-align: center;
+            font-size: 22px;
+            box-shadow: 0 0 150px rgba(255, 0, 0, 1);
+            border: 4px solid #fff;
+            width: 80%;
+            max-width: 600px;
+            animation: fadeIn 0.2s ease-out;
+        }
+        #disclaimer-modal h2 { margin-top: 0; font-size: 36px; text-transform: uppercase; letter-spacing: 2px; }
+
+        /* Reaction Popup Modal */
+        #reaction-popup-modal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(10, 14, 23, 0.95);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            color: #fff;
+            padding: 40px;
+            border-radius: 20px;
+            z-index: 999999;
+            text-align: center;
+            border: 1px solid #00e5ff;
+            box-shadow: 0 0 50px rgba(0, 229, 255, 0.3), inset 0 0 20px rgba(0, 229, 255, 0.1);
+            width: 80%;
+            max-width: 500px;
+            animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        #reaction-popup-modal.danger {
+            border-color: #ff0000;
+            box-shadow: 0 0 50px rgba(255, 0, 0, 0.3), inset 0 0 20px rgba(255, 0, 0, 0.1);
+        }
+
+        @keyframes popIn {
+            0% { opacity: 0; transform: translate(-50%, -40%) scale(0.8); }
+            100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        }
+
+        .popup-equation {
+            font-size: 28px;
+            color: #00e5ff;
+            font-weight: 900;
+            letter-spacing: 2px;
+            margin-bottom: 10px;
+            font-family: 'Share Tech Mono', monospace;
+        }
+
+        .popup-danger-equation {
+            color: #ff4444;
+        }
+
+        .popup-result-name {
+            font-size: 32px;
+            margin: 10px 0;
+            text-shadow: 0 0 10px rgba(255,255,255,0.5);
+        }
+
+        .popup-details {
+            color: #8b949e;
+            font-size: 16px;
+            margin-bottom: 25px;
+            line-height: 1.5;
+        }
+
+        .popup-btn-row {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        .popup-btn {
+            background: transparent;
+            color: #00e5ff;
+            border: 1px solid #00e5ff;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: 0.3s;
+            font-family: 'Rajdhani', sans-serif;
+            font-weight: bold;
+        }
+        .popup-btn:hover {
+            background: #00e5ff;
+            color: #000;
+        }
+
+        .popup-btn.danger-btn {
+            color: #ff4444;
+            border-color: #ff4444;
+        }
+        .popup-btn.danger-btn:hover {
+            background: #ff4444;
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Radioactive Symbol Overlay -->
+    <div id="radioactive-overlay">
+        <div class="radioactive-icon">☢</div>
+        <div class="radioactive-text">RADIATION DETECTED</div>
+    </div>
+    
+    <!-- Radioactive Lightning Effect -->
+    <div id="radioactive-lightning"></div>
+
+    <!-- Radioactive Crack Effect -->
+    <div id="radioactive-crack"></div>
+
+    <!-- Canvas Particle Background -->
+    <canvas id="particle-canvas" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 1;"></canvas>
+
+    <!-- 3D Reactor Container -->
+    <div id="three-container" style="position:fixed; top:0; left:0; width:100vw; height:100vh; z-index:9000; opacity:0; pointer-events:none; transition:opacity 1s; background:rgba(0,0,0,0.9);">
+        <canvas id="reactor-canvas" style="width:100%; height:100%;"></canvas>
+        <button onclick="if(window.reactor) window.reactor.exitSimulation()" class="btn" style="position:absolute; bottom:30px; left:50%; transform:translateX(-50%); z-index:9999; background:rgba(0,0,0,0.5);">Exit Simulation</button>
+    </div>
+
+    <!-- Script imports -->
+    <script src="reactor_3d.js"></script>
+
+    <div class="container">
+        <h1>Virtual Chemical Mixing</h1>
+        <p>Mix up to 5 elements (All 118 Elements Supported) and set exact amounts (1 to 99). The engine validates real chemical combinations!</p>
+
+        <div class="controls-row">
+            <button class="ctrl-btn" id="btn-add" onclick="addSlot()">+ Add Slot</button>
+            <button class="ctrl-btn" id="btn-rem" onclick="removeSlot()">- Remove Slot</button>
+        </div>
+
+        <div class="mixer-area" id="mixer-area">
+            <!-- Slots generated by JS -->
+        </div>
+
+        <button class="mix-btn" onclick="mixChemicals()">MIX CHEMICALS</button>
+        
+        <div id="result-display">
+            <h3 id="result-title">Reaction Complete!</h3>
+            <div id="result-text">...</div>
+        </div>
+
+        <br>
+        <a href="index.html" class="back-btn">&#8592; Back to Hub</a>
+    </div>
+
+    <!-- Explosion Disclaimer -->
+    <div id="disclaimer-modal">
+        <h2>⚠️ EXTREME DANGER ⚠️</h2>
+        <p id="disclaimer-text">You have mixed a highly reactive compound!<br>This resulted in a massive explosion, which is why your device is currently shaking.<br><br><b>Please do not try this at home!</b></p>
+    </div>
+
+    <!-- Cinematic Post-Reaction Popup Modal -->
+    <div id="reaction-popup-modal">
+        <div id="popup-equation" class="popup-equation">2H + 1O ➔ H₂O</div>
+        <div id="popup-result-name" class="popup-result-name">Water</div>
+        <div id="popup-details" class="popup-details">Life-giving water.</div>
+        <div class="popup-btn-row">
+            <button class="popup-btn" id="popup-btn-keep" onclick="document.getElementById('reaction-popup-modal').style.display='none'">Dismiss</button>
+        </div>
+    </div>
+
+    <!-- Script for UI Logic -->
+    <script>
+        // All 118 Elements
+        const elementsList = [
+            { sym: "H", name: "Hydrogen" }, { sym: "He", name: "Helium" },
+            { sym: "Li", name: "Lithium" }, { sym: "Be", name: "Beryllium" },
+            { sym: "B", name: "Boron" }, { sym: "C", name: "Carbon" },
+            { sym: "N", name: "Nitrogen" }, { sym: "O", name: "Oxygen" },
+            { sym: "F", name: "Fluorine" }, { sym: "Ne", name: "Neon" },
+            { sym: "Na", name: "Sodium" }, { sym: "Mg", name: "Magnesium" },
+            { sym: "Al", name: "Aluminum" }, { sym: "Si", name: "Silicon" },
+            { sym: "P", name: "Phosphorus" }, { sym: "S", name: "Sulfur" },
+            { sym: "Cl", name: "Chlorine" }, { sym: "Ar", name: "Argon" },
+            { sym: "K", name: "Potassium" }, { sym: "Ca", name: "Calcium" },
+            { sym: "Sc", name: "Scandium" }, { sym: "Ti", name: "Titanium" },
+            { sym: "V", name: "Vanadium" }, { sym: "Cr", name: "Chromium" },
+            { sym: "Mn", name: "Manganese" }, { sym: "Fe", name: "Iron" },
+            { sym: "Co", name: "Cobalt" }, { sym: "Ni", name: "Nickel" },
+            { sym: "Cu", name: "Copper" }, { sym: "Zn", name: "Zinc" },
+            { sym: "Ga", name: "Gallium" }, { sym: "Ge", name: "Germanium" },
+            { sym: "As", name: "Arsenic" }, { sym: "Se", name: "Selenium" },
+            { sym: "Br", name: "Bromine" }, { sym: "Kr", name: "Krypton" },
+            { sym: "Rb", name: "Rubidium" }, { sym: "Sr", name: "Strontium" },
+            { sym: "Y", name: "Yttrium" }, { sym: "Zr", name: "Zirconium" },
+            { sym: "Nb", name: "Niobium" }, { sym: "Mo", name: "Molybdenum" },
+            { sym: "Tc", name: "Technetium" }, { sym: "Ru", name: "Ruthenium" },
+            { sym: "Rh", name: "Rhodium" }, { sym: "Pd", name: "Palladium" },
+            { sym: "Ag", name: "Silver" }, { sym: "Cd", name: "Cadmium" },
+            { sym: "In", name: "Indium" }, { sym: "Sn", name: "Tin" },
+            { sym: "Sb", name: "Antimony" }, { sym: "Te", name: "Tellurium" },
+            { sym: "I", name: "Iodine" }, { sym: "Xe", name: "Xenon" },
+            { sym: "Cs", name: "Cesium" }, { sym: "Ba", name: "Barium" },
+            { sym: "La", name: "Lanthanum" }, { sym: "Ce", name: "Cerium" },
+            { sym: "Pr", name: "Praseodymium" }, { sym: "Nd", name: "Neodymium" },
+            { sym: "Pm", name: "Promethium" }, { sym: "Sm", name: "Samarium" },
+            { sym: "Eu", name: "Europium" }, { sym: "Gd", name: "Gadolinium" },
+            { sym: "Tb", name: "Terbium" }, { sym: "Dy", name: "Dysprosium" },
+            { sym: "Ho", name: "Holmium" }, { sym: "Er", name: "Erbium" },
+            { sym: "Tm", name: "Thulium" }, { sym: "Yb", name: "Ytterbium" },
+            { sym: "Lu", name: "Lutetium" }, { sym: "Hf", name: "Hafnium" },
+            { sym: "Ta", name: "Tantalum" }, { sym: "W", name: "Tungsten" },
+            { sym: "Re", name: "Rhenium" }, { sym: "Os", name: "Osmium" },
+            { sym: "Ir", name: "Iridium" }, { sym: "Pt", name: "Platinum" },
+            { sym: "Au", name: "Gold" }, { sym: "Hg", name: "Mercury" },
+            { sym: "Tl", name: "Thallium" }, { sym: "Pb", name: "Lead" },
+            { sym: "Bi", name: "Bismuth" }, { sym: "Po", name: "Polonium" },
+            { sym: "At", name: "Astatine" }, { sym: "Rn", name: "Radon" },
+            { sym: "Fr", name: "Francium" }, { sym: "Ra", name: "Radium" },
+            { sym: "Ac", name: "Actinium" }, { sym: "Th", name: "Thorium" },
+            { sym: "Pa", name: "Protactinium" }, { sym: "U", name: "Uranium" },
+            { sym: "Np", name: "Neptunium" }, { sym: "Pu", name: "Plutonium" },
+            { sym: "Am", name: "Americium" }, { sym: "Cm", name: "Curium" },
+            { sym: "Bk", name: "Berkelium" }, { sym: "Cf", name: "Californium" },
+            { sym: "Es", name: "Einsteinium" }, { sym: "Fm", name: "Fermium" },
+            { sym: "Md", name: "Mendelevium" }, { sym: "No", name: "Nobelium" },
+            { sym: "Lr", name: "Lawrencium" }, { sym: "Rf", name: "Rutherfordium" },
+            { sym: "Db", name: "Dubnium" }, { sym: "Sg", name: "Seaborgium" },
+            { sym: "Bh", name: "Bohrium" }, { sym: "Hs", name: "Hassium" },
+            { sym: "Mt", name: "Meitnerium" }, { sym: "Ds", name: "Darmstadtium" },
+            { sym: "Rg", name: "Roentgenium" }, { sym: "Cn", name: "Copernicium" },
+            { sym: "Nh", name: "Nihonium" }, { sym: "Fl", name: "Flerovium" },
+            { sym: "Mc", name: "Moscovium" }, { sym: "Lv", name: "Livermorium" },
+            { sym: "Ts", name: "Tennessine" }, { sym: "Og", name: "Oganesson" }
+        ];
+
+        // Database of real chemical compounds and empirical rules
+        const knownCompounds = [
+            { formula: { H:2, O:1 }, name: 'Water (H₂O)', desc: 'Life-giving water.', bondType: 'covalent', bondOrder: 1, geometry: 'bent', bondAngle: '104.5°', hybridization: 'sp³', sigmaBonds: 2, piBonds: 0, polarity: 'Polar', vbtDesc: 'Oxygen (sp³) overlaps with Hydrogen (1s) to form 2 sigma bonds. Two lone pairs compress the bond angle.' },
+            { formula: { N:1, H:3 }, name: 'Ammonia (NH₃)', desc: 'Pungent gas used in fertilizer.', bondType: 'covalent', bondOrder: 1, geometry: 'trigonal pyramidal', bondAngle: '107°', hybridization: 'sp³', sigmaBonds: 3, piBonds: 0, polarity: 'Polar', vbtDesc: 'Nitrogen (sp³) overlaps with Hydrogen (1s). One lone pair compresses the geometry.' },
+            { formula: { C:1, H:4 }, name: 'Methane (CH₄)', desc: 'Flammable gas.', bondType: 'covalent', bondOrder: 1, geometry: 'tetrahedral', bondAngle: '109.5°', hybridization: 'sp³', sigmaBonds: 4, piBonds: 0, polarity: 'Nonpolar', vbtDesc: 'Carbon (sp³) hybridizes to form 4 equivalent sigma bonds with Hydrogen (1s) in a perfect tetrahedron.' },
+            { formula: { C:1, O:2 }, name: 'Carbon Dioxide (CO₂)', desc: 'Common greenhouse gas.', bondType: 'covalent', bondOrder: 2, geometry: 'linear', bondAngle: '180°', hybridization: 'sp', sigmaBonds: 2, piBonds: 2, polarity: 'Nonpolar', vbtDesc: 'Carbon (sp) forms 2 sigma bonds with Oxygen (sp²). Unhybridized p-orbitals form 2 pi bonds.' },
+            { formula: { N:2 }, name: 'Nitrogen Gas (N₂)', desc: 'Inert atmospheric gas.', bondType: 'covalent', bondOrder: 3, geometry: 'linear', bondAngle: '180°', hybridization: 'sp', sigmaBonds: 1, piBonds: 2, polarity: 'Nonpolar', vbtDesc: 'Two Nitrogen atoms share 3 electron pairs (1 sigma, 2 pi bonds) forming an extremely strong triple bond.' },
+            { formula: { O:2 }, name: 'Oxygen Gas (O₂)', desc: 'Essential for respiration.', bondType: 'covalent', bondOrder: 2, geometry: 'linear', bondAngle: '180°', hybridization: 'sp²', sigmaBonds: 1, piBonds: 1, polarity: 'Nonpolar', vbtDesc: 'Oxygen atoms share 2 electron pairs (1 sigma, 1 pi bond).' },
+            { formula: { C:1, O:1 }, name: 'Carbon Monoxide (CO)', desc: 'Toxic gas.', bondType: 'coordinate', bondOrder: 3, geometry: 'linear', bondAngle: '180°', hybridization: 'sp', sigmaBonds: 1, piBonds: 2, polarity: 'Polar', vbtDesc: 'Carbon and Oxygen form a triple bond. One of the pi bonds is a Coordinate (Dative) bond, where Oxygen donates both electrons.' },
+            { formula: { Na:1, Cl:1 }, name: 'Sodium Chloride (NaCl)', desc: 'Table salt.', bondType: 'ionic', bondOrder: 0, geometry: 'crystal lattice', bondAngle: '90° (lattice)', hybridization: 'N/A', sigmaBonds: 0, piBonds: 0, polarity: 'Highly Ionic', vbtDesc: 'Sodium transfers its 1 valence electron to Chlorine. Electrostatic attraction holds the Na⁺ and Cl⁻ ions together.' },
+            { formula: { Mg:1, O:1 }, name: 'Magnesium Oxide (MgO)', desc: 'Burns with brilliant light.', bondType: 'ionic', bondOrder: 0, geometry: 'crystal lattice', bondAngle: '90° (lattice)', hybridization: 'N/A', sigmaBonds: 0, piBonds: 0, polarity: 'Highly Ionic', vbtDesc: 'Magnesium transfers 2 valence electrons to Oxygen, forming Mg²⁺ and O²⁻ ions bound by intense electrostatic attraction.' },
+            { formula: { H:1, Cl:1 }, name: 'Hydrogen Chloride (HCl)', desc: 'Forms hydrochloric acid.', bondType: 'covalent', bondOrder: 1, geometry: 'linear', bondAngle: '180°', hybridization: 'sp³ (Cl)', sigmaBonds: 1, piBonds: 0, polarity: 'Polar', vbtDesc: 'Hydrogen (1s) overlaps with Chlorine (3p) to form a polar sigma bond.' }
+        ];
+
+        // --- WEB AUDIO API SYNTHESIS ---
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioContext();
+
+        function playSuccessSound() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc1 = audioCtx.createOscillator();
+            const osc2 = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+
+            osc1.type = 'sine';
+            osc2.type = 'triangle';
+            
+            osc1.frequency.setValueAtTime(440, audioCtx.currentTime); // A4
+            osc1.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.3); // A5
+
+            osc2.frequency.setValueAtTime(554.37, audioCtx.currentTime); // C#5
+            osc2.frequency.exponentialRampToValueAtTime(1108.73, audioCtx.currentTime + 0.3); // C#6
+
+            gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+            gainNode.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 0.1);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 1.0);
+
+            osc1.connect(gainNode);
+            osc2.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            osc1.start();
+            osc2.start();
+            osc1.stop(audioCtx.currentTime + 1.0);
+            osc2.stop(audioCtx.currentTime + 1.0);
+        }
+
+        function playExplosionSound() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            const bufferSize = audioCtx.sampleRate * 2; // 2 seconds
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                data[i] = Math.random() * 2 - 1; // White noise
+            }
+
+            const noiseSource = audioCtx.createBufferSource();
+            noiseSource.buffer = buffer;
+
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(1000, audioCtx.currentTime);
+            filter.frequency.exponentialRampToValueAtTime(50, audioCtx.currentTime + 1.5);
+
+            const gainNode = audioCtx.createGain();
+            gainNode.gain.setValueAtTime(1, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 2);
+
+            noiseSource.connect(filter);
+            filter.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            noiseSource.start();
+        }
+
+        function playRadioactiveSound() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            const duration = 3.0; // 3 seconds
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            osc.type = 'sawtooth';
+            
+            // Siren sweep effect
+            osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+            osc.frequency.linearRampToValueAtTime(800, audioCtx.currentTime + 0.5);
+            osc.frequency.linearRampToValueAtTime(400, audioCtx.currentTime + 1.0);
+            osc.frequency.linearRampToValueAtTime(800, audioCtx.currentTime + 1.5);
+            osc.frequency.linearRampToValueAtTime(400, audioCtx.currentTime + 2.0);
+            osc.frequency.linearRampToValueAtTime(800, audioCtx.currentTime + 2.5);
+            osc.frequency.linearRampToValueAtTime(400, audioCtx.currentTime + 3.0);
+            
+            gain.gain.setValueAtTime(0, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 0.1);
+            gain.gain.setValueAtTime(0.5, audioCtx.currentTime + 2.9);
+            gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 3.0);
+            
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            osc.start(audioCtx.currentTime);
+            osc.stop(audioCtx.currentTime + 3.0);
+        }
+        
+        function triggerRadioactiveEffect() {
+            document.body.classList.add('radioactive-active');
+            setTimeout(() => {
+                document.body.classList.remove('radioactive-active');
+            }, 3000);
+        }
+
+        let slotCount = 1;
+        const maxSlots = 5;
+        const minSlots = 1;
+
+        function renderSlots() {
+            const area = document.getElementById('mixer-area');
+            
+            if (!document.getElementById('elements-dl')) {
+                const dl = document.createElement('datalist');
+                dl.id = 'elements-dl';
+                elementsList.forEach(el => {
+                    const opt = document.createElement('option');
+                    opt.value = el.sym;
+                    opt.innerText = el.name;
+                    dl.appendChild(opt);
+                });
+                document.body.appendChild(dl);
+            }
+
+            let oldValues = [];
+            let oldAmts = [];
+            document.querySelectorAll('.element-select').forEach(input => oldValues.push(input.value || input.dataset.old));
+            document.querySelectorAll('.amt-input').forEach(input => oldAmts.push(input.value));
+
+            area.innerHTML = '';
+            
+            for(let i=0; i<slotCount; i++) {
+                const div = document.createElement('div');
+                div.className = 'element-drop';
+                
+                div.innerHTML = `
+                    <div class="el-clickable">
+                        <input type="text" list="elements-dl" class="element-select" placeholder="Search" 
+                               onfocus="this.dataset.old = this.value; this.value='';" 
+                               onblur="if(this.value==='') this.value = this.dataset.old || 'H';" 
+                               onchange="validateElement(this)">
+                    </div>
+                    <div class="el-amount-container">
+                        <span style="font-size:12px; color:#8b949e; margin-right:4px; line-height:22px;">x</span>
+                        <input type="number" min="1" max="99" value="1" class="amt-input" onchange="validateAmount(this)">
+                    </div>
+                `;
+                
+                const defaultSyms = ['H', 'O', 'C', 'Na', 'Cl'];
+                const def = defaultSyms[i % defaultSyms.length];
+                
+                div.querySelector('.element-select').value = oldValues[i] || def;
+                div.querySelector('.element-select').dataset.old = oldValues[i] || def;
+                div.querySelector('.amt-input').value = oldAmts[i] || 1;
+                
+                area.appendChild(div);
+                
+                // Set initial styling based on element
+                updateSlotStyle(div);
+                
+                if (i < slotCount - 1) {
+                    const plus = document.createElement('div');
+                    plus.className = 'plus-sign';
+                    plus.innerText = '+';
+                    area.appendChild(plus);
+                }
+            }
+
+            document.getElementById('btn-add').disabled = (slotCount >= maxSlots);
+            document.getElementById('btn-rem').disabled = (slotCount <= minSlots);
+        }
+
+        function validateElement(input) {
+            document.getElementById('result-display').style.display = 'none';
+            if (input.value === '') return;
+            let val = input.value.trim().toLowerCase();
+            let match = elementsList.find(e => e.sym.toLowerCase() === val || e.name.toLowerCase() === val);
+            if (match) {
+                input.value = match.sym;
+                input.dataset.old = match.sym;
+            } else {
+                input.value = input.dataset.old || 'H';
+            }
+            updateSlotStyle(input.closest('.element-drop'));
+        }
+
+        function validateAmount(input) {
+            let val = parseInt(input.value);
+            if (isNaN(val) || val < 1) input.value = 1;
+            if (val > 99) input.value = 99;
+            updateSlotStyle(input.closest('.element-drop'));
+        }
+
+        function updateSlotStyle(slot) {
+            if(!slot) return;
+            const input = slot.querySelector('.element-select');
+            const amtInput = slot.querySelector('.amt-input');
+            if(!input || !amtInput) return;
+            
+            const sym = input.value;
+            const amt = parseInt(amtInput.value) || 1;
+            
+            const alkali = ['Li', 'Na', 'K', 'Rb', 'Cs', 'Fr'];
+            const halogens = ['F', 'Cl', 'Br', 'I', 'At'];
+            const noble = ['He', 'Ne', 'Ar', 'Kr', 'Xe', 'Rn', 'Og'];
+            const radioactive = ['U', 'Pu', 'Th', 'Ra', 'Po', 'Rn', 'Fr', 'Ac', 'Pa', 'Np', 'Am', 'Cm', 'Bk', 'Cf', 'Es', 'Fm', 'Md', 'No', 'Lr'];
+            
+            let color = '#58a6ff'; // Default blue
+            if (radioactive.includes(sym)) color = '#00ff00';
+            else if (alkali.includes(sym)) color = '#ffaa00';
+            else if (halogens.includes(sym)) color = '#00ff88';
+            else if (noble.includes(sym)) color = '#bf5aff';
+            
+            slot.style.borderColor = color;
+            slot.style.boxShadow = `0 0 15px ${color}40`;
+            slot.style.background = `${color}15`;
+            
+            let isVolatile = false;
+            if (radioactive.includes(sym) && amt >= 3) isVolatile = true;
+            if (alkali.includes(sym) && amt >= 10) isVolatile = true;
+            if (halogens.includes(sym) && amt >= 20) isVolatile = true;
+            
+            if (isVolatile) {
+                slot.classList.add('volatile');
+            } else {
+                slot.classList.remove('volatile');
+            }
+        }
+
+        function addSlot() {
+            if (slotCount < maxSlots) {
+                slotCount++;
+                renderSlots();
+            }
+        }
+
+        function removeSlot() {
+            if (slotCount > minSlots) {
+                slotCount--;
+                renderSlots();
+            }
+        }
+
+        function triggerExplosion(reason) {
+            document.body.classList.add('shake-active');
+            const modal = document.getElementById('disclaimer-modal');
+            const txt = document.getElementById('disclaimer-text');
+            txt.innerHTML = `${reason}<br><br>This resulted in a massive explosion, which is why your device is currently shaking.<br><br><b>Please do not try this at home!</b>`;
+            modal.style.display = 'block';
+
+            setTimeout(() => {
+                document.body.classList.remove('shake-active');
+                modal.style.display = 'none';
+            }, 3000);
+        }
+
+        function mixChemicals() {
+            const slots = document.querySelectorAll('.element-drop');
+            let totals = {};
+            
+            slots.forEach(slot => {
+                const sym = slot.querySelector('.element-select').value;
+                const amt = parseInt(slot.querySelector('.amt-input').value) || 1;
+                if (!totals[sym]) totals[sym] = 0;
+                totals[sym] += amt;
+            });
+
+            // Initialize Reactor Engine if not done
+            if (!window.reactor) {
+                window.reactor = new ReactorEngine('reactor-canvas');
+            }
+
+            // Validate empirical formations or radioactivity
+            let reactionResult = 'none';
+            let success = false;
+            let resultData = []; // To hold the name and desc of created molecules
+            let originalTotals = { ...totals }; // Save original totals before subtracting
+            
+            const radioactiveElements = ['U', 'Pu', 'Th', 'Ra', 'Po', 'Rn', 'Fr', 'Ac', 'Pa', 'Np', 'Am', 'Cm', 'Bk', 'Cf', 'Es', 'Fm', 'Md', 'No', 'Lr'];
+            const alkaliMetals = ['Li', 'Na', 'K', 'Rb', 'Cs', 'Fr'];
+            let hasAlkali = alkaliMetals.some(m => totals[m] > 0);
+
+            if (hasAlkali && totals['H'] > 0 && totals['O'] > 0) {
+                reactionResult = 'explode';
+                resultData.push({ name: "Explosive Reaction", desc: "Alkali metals react violently with water!" });
+            } else if (totals['F'] > 0 && totals['H'] > 0) {
+                reactionResult = 'explode';
+                resultData.push({ name: "Explosive Reaction", desc: "Fluorine + Hydrogen explodes instantly!" });
+            } else if (Object.keys(totals).some(k => radioactiveElements.includes(k) && totals[k] > 0)) {
+                reactionResult = 'radioactive';
+            } else {
+                let sortedCompounds = [...knownCompounds].sort((a, b) => {
+                    let aSize = Object.values(a.formula).reduce((sum, val) => sum + val, 0);
+                    let bSize = Object.values(b.formula).reduce((sum, val) => sum + val, 0);
+                    return bSize - aSize;
+                });
+
+                for (let comp of sortedCompounds) {
+                    let maxPossible = Infinity;
+                    for (let el in comp.formula) {
+                        if (!totals[el]) { maxPossible = 0; break; }
+                        let possibleCount = Math.floor(totals[el] / comp.formula[el]);
+                        if (possibleCount < maxPossible) maxPossible = possibleCount;
+                    }
+                    if (maxPossible > 0) { 
+                        success = true; 
+                        resultData.push({ count: maxPossible, ...comp });
+                        // Don't break, keep finding all possible
+                        for (let el in comp.formula) totals[el] -= (maxPossible * comp.formula[el]);
+                    }
+                }
+                
+                if (success) reactionResult = 'success';
+            }
+
+            // Launch 3D Simulation
+            window.reactor.startSimulation(originalTotals, reactionResult, resultData);
+        }
+
+        // Init
+        renderSlots();
+    </script>
+
+    <!-- Script for Particle Constellation Background (Optimized) -->
+    <script>
+        const canvas = document.getElementById('particle-canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        let particlesArray = [];
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+
+        const mouse = { x: undefined, y: undefined };
+        let lastSpawn = 0;
+        window.addEventListener('pointermove', (event) => {
+            mouse.x = event.clientX;
+            mouse.y = event.clientY;
+            const now = performance.now();
+            if (now - lastSpawn > 20) {
+                particlesArray.push(new Particle());
+                lastSpawn = now;
+            }
+        });
+
+        class Particle {
+            constructor() {
+                this.x = mouse.x;
+                this.y = mouse.y;
+                this.size = Math.random() * 5 + 2;
+                this.speedX = Math.random() * 3 - 1.5;
+                this.speedY = Math.random() * -3 - 1; // Rise up like bubbles
+                this.color = '#00e5ff'; // Cyan bubbles to match new theme
+            }
+            update() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+                if (this.size > 0.1) this.size -= 0.1;
+            }
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.strokeStyle = this.color;
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                ctx.fillStyle = `rgba(0, 229, 255, 0.2)`;
+                ctx.fill();
+            }
+        }
+
+        function handleParticles() {
+            for (let i = 0; i < particlesArray.length; i++) {
+                particlesArray[i].update();
+                particlesArray[i].draw();
+                for (let j = i; j < particlesArray.length; j++) {
+                    const dx = particlesArray[i].x - particlesArray[j].x;
+                    const dy = particlesArray[i].y - particlesArray[j].y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    if (distance < 50) {
+                        ctx.beginPath();
+                        ctx.strokeStyle = particlesArray[i].color;
+                        ctx.globalAlpha = 1 - (distance / 50);
+                        ctx.lineWidth = 0.5;
+                        ctx.moveTo(particlesArray[i].x, particlesArray[i].y);
+                        ctx.lineTo(particlesArray[j].x, particlesArray[j].y);
+                        ctx.stroke();
+                        ctx.globalAlpha = 1;
+                    }
+                }
+                if (particlesArray[i].size <= 0.1) {
+                    particlesArray.splice(i, 1);
+                    i--;
+                }
+            }
+        }
+
+        function animateParticles() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            handleParticles();
+            requestAnimationFrame(animateParticles);
+        }
+        animateParticles();
+    </script>
+</body>
+</html>
+
